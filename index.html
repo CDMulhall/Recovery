@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Post-Op Med Tracker</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background: #f4f7f9; padding: 20px; display: flex; flex-direction: column; align-items: center; color: #333; }
+        h1 { color: #1a73e8; margin-bottom: 5px; font-size: 1.8rem; }
+        .subtitle { color: #666; margin-bottom: 20px; font-size: 0.9rem; }
+        .controls { margin-bottom: 20px; display: flex; gap: 10px; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; width: 100%; max-width: 800px; }
+        .card { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); text-align: center; border-top: 10px solid #ccc; position: relative; }
+        .card.ready { border-top-color: #34a853; background: #f0fff4; }
+        .card.waiting { border-top-color: #ea4335; }
+        .med-name { font-size: 1.5rem; font-weight: bold; margin-bottom: 5px; color: #202124; }
+        .dosage { color: #5f6368; margin-bottom: 15px; font-weight: 500; text-transform: uppercase; font-size: 0.8rem; letter-spacing: 0.5px; }
+        .status-text { font-size: 1.1rem; font-weight: bold; margin: 10px 0; }
+        .timer { font-family: 'Courier New', monospace; font-size: 2.4rem; margin: 10px 0; font-weight: bold; color: #222; }
+        button { background: #1a73e8; color: white; border: none; padding: 16px 24px; border-radius: 12px; font-size: 1.1rem; cursor: pointer; font-weight: bold; width: 100%; transition: background 0.2s; }
+        button:active { transform: scale(0.97); }
+        button:disabled { background: #dadce0; cursor: not-allowed; color: #70757a; }
+        .secondary-btn { background: #fff; color: #5f6368; border: 1px solid #dadce0; width: auto; padding: 8px 16px; font-size: 0.85rem; border-radius: 8px; }
+        .reset-btn { color: #d93025; border-color: #fce8e6; margin-top: 50px; background: transparent; }
+        .history-list { width: 100%; max-width: 800px; margin-top: 30px; background: white; padding: 20px; border-radius: 16px; box-shadow: 0 2px 6px rgba(0,0,0,0.05); }
+        .history-item { padding: 10px 0; border-bottom: 1px solid #f1f3f4; display: flex; justify-content: space-between; font-size: 0.95rem; }
+        .history-item:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+
+    <h1>Recovery Tracker</h1>
+    <div class="subtitle">Caregiver Log for Wife</div>
+    
+    <div class="controls">
+        <button class="secondary-btn" onclick="exportHistory()">📥 Download Full Log</button>
+    </div>
+
+    <div class="grid" id="med-container"></div>
+
+    <div class="history-list">
+        <h3 style="margin-top:0; color: #5f6368;">Recent Doses</h3>
+        <div id="recent-log"></div>
+    </div>
+
+    <button class="secondary-btn reset-btn" onclick="resetAllData()">Reset All History</button>
+
+    <script>
+        // UPDATED MEDICATION LIST
+        const meds = [
+            { id: 'acetaminophen', name: 'Acetaminophen', dosage: 'Per prescription', hours: 6 },
+            { id: 'ibuprofen', name: 'Ibuprofen', dosage: 'Per prescription', hours: 6 },
+            { id: 'oxy', name: 'Oxycodone', dosage: 'Per prescription', hours: 4 }
+        ];
+
+        function updateUI() {
+            const container = document.getElementById('med-container');
+            const now = Date.now();
+
+            meds.forEach(med => {
+                let card = document.getElementById(med.id);
+                if (!card) {
+                    card = document.createElement('div');
+                    card.id = med.id;
+                    card.className = 'card';
+                    container.appendChild(card);
+                }
+
+                const lastTaken = localStorage.getItem(med.id) || 0;
+                const waitTimeMs = med.hours * 60 * 60 * 1000;
+                const nextAvailable = parseInt(lastTaken) + waitTimeMs;
+                const remaining = nextAvailable - now;
+
+                const isReady = remaining <= 0;
+                card.className = `card ${isReady ? 'ready' : 'waiting'}`;
+
+                card.innerHTML = `
+                    <div class="med-name">${med.name}</div>
+                    <div class="dosage">Wait Window: ${med.hours} Hours</div>
+                    <div class="status-text" style="color: ${isReady ? '#188038' : '#d93025'}">
+                        ${isReady ? '✅ AVAILABLE' : '⏳ LOCKED'}
+                    </div>
+                    <div class="timer">${isReady ? '--:--:--' : formatTime(remaining)}</div>
+                    <button onclick="takeMed('${med.id}', '${med.name}')" ${!isReady ? 'disabled' : ''}>
+                        LOG DOSE NOW
+                    </button>
+                `;
+            });
+
+            updateRecentLog();
+        }
+
+        function formatTime(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const h = Math.floor(totalSeconds / 3600);
+            const m = Math.floor((totalSeconds % 3600) / 60);
+            const s = totalSeconds % 60;
+            return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function updateRecentLog() {
+            const history = JSON.parse(localStorage.getItem('med_history') || '[]');
+            const logDiv = document.getElementById('recent-log');
+            logDiv.innerHTML = history.slice(-5).reverse().map(entry => `
+                <div class="history-item">
+                    <span><strong>${entry.name}</strong></span>
+                    <span style="color: #70757a;">${entry.time}</span>
+                </div>
+            `).join('') || '<div style="color:#999; text-align:center; padding: 20px;">No doses logged today.</div>';
+        }
+
+        window.takeMed = function(id, name) {
+            if (confirm(`Confirm: Did she just take ${name}?`)) {
+                const now = Date.now();
+                localStorage.setItem(id, now);
+                
+                let history = JSON.parse(localStorage.getItem('med_history') || '[]');
+                history.push({ 
+                    name: name, 
+                    time: new Date(now).toLocaleString([], {month: 'short', day: 'numeric', hour: '2-digit', minute:'2-digit'}) 
+                });
+                localStorage.setItem('med_history', JSON.stringify(history));
+                
+                updateUI();
+            }
+        }
+
+        window.exportHistory = function() {
+            const history = JSON.parse(localStorage.getItem('med_history') || '[]');
+            if (history.length === 0) return alert("No history to export.");
+            
+            let text = "MEDICATION LOG - RECOVERY\n\n" + history.map(e => `[${e.time}] ${e.name}`).join('\n');
+            const blob = new Blob([text], { type: 'text/plain' });
+            const anchor = document.createElement('a');
+            anchor.download = 'recovery_med_log.txt';
+            anchor.href = window.URL.createObjectURL(blob);
+            anchor.click();
+        }
+
+        window.resetAllData = function() {
+            if (confirm("This will delete all timestamps and history. Are you sure?")) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+
+        setInterval(updateUI, 1000);
+        updateUI();
+    </script>
+</body>
+</html>
