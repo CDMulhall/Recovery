@@ -9,7 +9,7 @@
         h1 { color: #1a73e8; margin-bottom: 5px; font-size: 1.8rem; }
         .subtitle { color: #666; margin-bottom: 20px; font-size: 0.9rem; }
         .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; width: 100%; max-width: 800px; margin-bottom: 30px; }
-        .card { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); text-align: center; border-top: 10px solid #ccc; }
+        .card { background: white; padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); text-align: center; border-top: 10px solid #ccc; transition: 0.3s; }
         .card.ready { border-top-color: #34a853; background: #f0fff4; }
         .card.waiting { border-top-color: #ea4335; }
         .card.limit-reached { border-top-color: #fabb05; background: #fffdf0; }
@@ -17,25 +17,21 @@
         .dosage { color: #5f6368; margin-bottom: 15px; font-size: 0.8rem; text-transform: uppercase; font-weight: bold; }
         .timer { font-family: 'Courier New', monospace; font-size: 2.2rem; margin: 10px 0; font-weight: bold; }
         
-        /* UI Elements */
+        /* Counter Badge for Gas-X */
+        .counter-badge { background: #e8f0fe; color: #1a73e8; padding: 8px 15px; border-radius: 20px; font-weight: bold; display: inline-block; margin-bottom: 15px; font-size: 0.9rem; border: 1px solid #1a73e8; }
+        .limit-alert { color: #d93025; background: #fce8e6; border: 1px solid #d93025; }
+
         button { background: #1a73e8; color: white; border: none; padding: 16px; border-radius: 12px; font-size: 1.1rem; cursor: pointer; font-weight: bold; width: 100%; }
         button:disabled { background: #dadce0; color: #70757a; }
-        .secondary-btn { background: #fff; color: #5f6368; border: 1px solid #dadce0; padding: 8px 16px; font-size: 0.85rem; border-radius: 8px; cursor: pointer; }
-        
-        /* Pain Tracker Section */
         .section-box { background: white; width: 100%; max-width: 800px; padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; box-sizing: border-box; }
         .pain-scale { display: flex; justify-content: space-between; margin: 15px 0; gap: 5px; }
         .pain-num { flex: 1; padding: 10px 0; border: 1px solid #ddd; border-radius: 8px; text-align: center; cursor: pointer; font-weight: bold; }
-        .pain-num.selected { background: #1a73e8; color: white; border-color: #1a73e8; }
+        .pain-num.selected { background: #1a73e8; color: white; }
         .location-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 15px; }
         .loc-btn { padding: 10px; border: 1px solid #ddd; border-radius: 8px; text-align: center; cursor: pointer; font-size: 0.85rem; }
-        .loc-btn.selected { background: #5f6368; color: white; border-color: #5f6368; }
-        
-        /* History */
-        .history-list { width: 100%; max-width: 800px; background: white; padding: 20px; border-radius: 16px; box-sizing: border-box; }
+        .loc-btn.selected { background: #5f6368; color: white; }
+        .history-list { width: 100%; max-width: 800px; background: white; padding: 20px; border-radius: 16px; }
         .history-item { padding: 10px 0; border-bottom: 1px solid #f1f3f4; display: flex; justify-content: space-between; font-size: 0.9rem; }
-        .tag-pain { color: #d93025; font-weight: bold; }
-        .tag-med { color: #1a73e8; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -44,16 +40,15 @@
     <div class="subtitle">Medication & Pain Log</div>
 
     <div style="margin-bottom: 20px;">
-        <button class="secondary-btn" onclick="exportHistory()">📥 Download Full Log</button>
+        <button style="background:#fff; color:#5f6368; border:1px solid #dadce0; padding:8px 16px; width:auto; font-size:0.85rem;" onclick="exportHistory()">📥 Download Log</button>
     </div>
 
     <div class="grid" id="med-container"></div>
 
     <div class="section-box">
         <h3 style="margin-top:0">Track Pain Level</h3>
-        <div class="pain-scale" id="pain-scale">
-            </div>
-        <div class="location-grid" id="location-grid">
+        <div class="pain-scale" id="pain-scale"></div>
+        <div class="location-grid">
             <div class="loc-btn" onclick="selectLoc(this)">Bed</div>
             <div class="loc-btn" onclick="selectLoc(this)">Chair</div>
             <div class="loc-btn" onclick="selectLoc(this)">Couch</div>
@@ -69,8 +64,6 @@
         <div id="recent-log"></div>
     </div>
 
-    <button style="margin-top:40px; background:none; color:#999; font-size:0.8rem; border:none;" onclick="if(confirm('Reset Everything?')){localStorage.clear();location.reload();}">Reset All Data</button>
-
     <script>
         const meds = [
             { id: 'acetaminophen', name: 'Acetaminophen', hours: 6, limit: null },
@@ -79,10 +72,8 @@
             { id: 'gasx', name: 'Gas-X', hours: 0, limit: 4 }
         ];
 
-        let selectedPain = null;
-        let selectedLocation = null;
+        let selectedPain = null, selectedLocation = null;
 
-        // Initialize Pain Scale UI
         const scaleDiv = document.getElementById('pain-scale');
         for(let i=1; i<=10; i++) {
             let div = document.createElement('div');
@@ -90,41 +81,26 @@
             div.innerText = i;
             div.onclick = function() {
                 document.querySelectorAll('.pain-num').forEach(el => el.classList.remove('selected'));
-                this.classList.add('selected');
-                selectedPain = i;
-                checkPainReady();
+                this.classList.add('selected'); selectedPain = i; checkPainReady();
             };
             scaleDiv.appendChild(div);
         }
 
         function selectLoc(el) {
             document.querySelectorAll('.loc-btn').forEach(btn => btn.classList.remove('selected'));
-            el.classList.add('selected');
-            selectedLocation = el.innerText;
-            checkPainReady();
+            el.classList.add('selected'); selectedLocation = el.innerText; checkPainReady();
         }
 
-        function checkPainReady() {
-            document.getElementById('log-pain-btn').disabled = !(selectedPain && selectedLocation);
-        }
+        function checkPainReady() { document.getElementById('log-pain-btn').disabled = !(selectedPain && selectedLocation); }
 
         function logPain() {
             const now = Date.now();
             let history = JSON.parse(localStorage.getItem('med_history') || '[]');
-            history.push({ 
-                type: 'PAIN', 
-                level: selectedPain, 
-                loc: selectedLocation, 
-                timestamp: now,
-                time: new Date(now).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) 
-            });
+            history.push({ type: 'PAIN', level: selectedPain, loc: selectedLocation, timestamp: now, time: new Date(now).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}) });
             localStorage.setItem('med_history', JSON.stringify(history));
-            
-            // Reset selection
             selectedPain = null; selectedLocation = null;
             document.querySelectorAll('.pain-num, .loc-btn').forEach(el => el.classList.remove('selected'));
-            checkPainReady();
-            updateUI();
+            checkPainReady(); updateUI();
         }
 
         function updateUI() {
@@ -133,13 +109,8 @@
             const history = JSON.parse(localStorage.getItem('med_history') || '[]');
 
             meds.forEach(med => {
-                let card = document.getElementById(med.id);
-                if (!card) {
-                    card = document.createElement('div');
-                    card.id = med.id;
-                    card.className = 'card';
-                    container.appendChild(card);
-                }
+                let card = document.getElementById(med.id) || document.createElement('div');
+                card.id = med.id; card.className = 'card'; container.appendChild(card);
 
                 const lastTaken = parseInt(localStorage.getItem(med.id) || 0);
                 const waitTimeMs = med.hours * 60 * 60 * 1000;
@@ -148,27 +119,33 @@
                 let isReady = (now - lastTaken) >= waitTimeMs;
                 let limitReached = med.limit && dosesInLast24 >= med.limit;
                 
-                if (limitReached) {
-                    card.className = 'card limit-reached';
-                    card.innerHTML = `<div class="med-name">${med.name}</div><div class="dosage">MAX ${med.limit} PER 24H</div><div style="color:#d93025; font-weight:bold; margin:10px 0;">DAILY LIMIT REACHED</div><button disabled>LOCKED</button>`;
+                if (med.id === 'gasx') {
+                    const remaining = med.limit - dosesInLast24;
+                    card.className = limitReached ? 'card limit-reached' : 'card ready';
+                    card.innerHTML = `
+                        <div class="med-name">${med.name}</div>
+                        <div class="counter-badge ${limitReached ? 'limit-alert' : ''}">
+                            ${limitReached ? '0' : remaining} DOSES REMAINING
+                        </div>
+                        <div class="dosage">Max 4 per 24 hours</div>
+                        <button onclick="takeMed('${med.id}', '${med.name}')" ${limitReached ? 'disabled' : ''}>
+                            ${limitReached ? 'DAILY LIMIT REACHED' : 'LOG DOSE'}
+                        </button>
+                    `;
                 } else {
                     const remaining = (lastTaken + waitTimeMs) - now;
                     card.className = isReady ? 'card ready' : 'card waiting';
                     card.innerHTML = `
                         <div class="med-name">${med.name}</div>
-                        <div class="dosage">${med.limit ? 'Limit: '+med.limit+'/day' : med.hours+' Hour Gap'}</div>
+                        <div class="dosage">${med.hours} Hour Gap</div>
                         <div class="timer">${isReady ? 'READY' : formatTime(remaining)}</div>
                         <button onclick="takeMed('${med.id}', '${med.name}')" ${!isReady ? 'disabled' : ''}>LOG DOSE</button>
                     `;
                 }
             });
 
-            const logDiv = document.getElementById('recent-log');
-            logDiv.innerHTML = history.slice(-8).reverse().map(e => {
-                if(e.type === 'PAIN') {
-                    return `<div class="history-item"><span class="tag-pain">PAIN: ${e.level}/10 (${e.loc})</span><span>${e.time}</span></div>`;
-                }
-                return `<div class="history-item"><span class="tag-med">MED: ${e.name}</span><span>${e.time}</span></div>`;
+            document.getElementById('recent-log').innerHTML = history.slice(-8).reverse().map(e => {
+                return e.type === 'PAIN' ? `<div class="history-item"><span style="color:#d93025">PAIN: ${e.level}/10 (${e.loc})</span><span>${e.time}</span></div>` : `<div class="history-item"><span style="color:#1a73e8">MED: ${e.name}</span><span>${e.time}</span></div>`;
             }).join('') || 'No entries yet.';
         }
 
@@ -190,14 +167,10 @@
 
         window.exportHistory = function() {
             const history = JSON.parse(localStorage.getItem('med_history') || '[]');
-            let text = "SURGERY RECOVERY LOG\n\n" + history.map(e => {
-                return e.type === 'PAIN' ? `[${e.time}] PAIN: ${e.level}/10 at ${e.loc}` : `[${e.time}] MED: ${e.name}`;
-            }).join('\n');
+            let text = "SURGERY RECOVERY LOG\n\n" + history.map(e => e.type === 'PAIN' ? `[${e.time}] PAIN: ${e.level}/10 at ${e.loc}` : `[${e.time}] MED: ${e.name}`).join('\n');
             const blob = new Blob([text], { type: 'text/plain' });
             const anchor = document.createElement('a');
-            anchor.download = 'recovery_log.txt';
-            anchor.href = window.URL.createObjectURL(blob);
-            anchor.click();
+            anchor.download = 'recovery_log.txt'; anchor.href = window.URL.createObjectURL(blob); anchor.click();
         }
 
         setInterval(updateUI, 1000);
