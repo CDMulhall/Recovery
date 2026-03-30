@@ -16,11 +16,9 @@
         .med-name { font-size: 1.5rem; font-weight: bold; margin-bottom: 5px; color: #202124; }
         .dosage-info { color: #5f6368; margin-bottom: 10px; font-size: 0.85rem; font-weight: bold; }
         .timer { font-family: 'Courier New', monospace; font-size: 2.2rem; margin: 10px 0; font-weight: bold; }
-        
         .badge { padding: 8px 15px; border-radius: 20px; font-weight: bold; display: inline-block; margin-bottom: 15px; font-size: 0.85rem; border: 1px solid #ccc; }
         .badge-blue { background: #e8f0fe; color: #1a73e8; border-color: #1a73e8; }
         .badge-warn { background: #fce8e6; color: #d93025; border-color: #d93025; }
-
         button { background: #1a73e8; color: white; border: none; padding: 16px; border-radius: 12px; font-size: 1.1rem; cursor: pointer; font-weight: bold; width: 100%; }
         button:disabled { background: #dadce0; color: #70757a; }
         .section-box { background: white; width: 100%; max-width: 800px; padding: 20px; border-radius: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); margin-bottom: 20px; box-sizing: border-box; }
@@ -37,7 +35,7 @@
 <body>
 
     <h1>Recovery Tracker</h1>
-    <div class="subtitle">Medication & Pain Log</div>
+    <div class="subtitle">Caregiver Log - 4,000mg Acetaminophen Safety On</div>
 
     <div style="margin-bottom: 20px;">
         <button style="background:#fff; color:#5f6368; border:1px solid #dadce0; padding:8px 16px; width:auto; font-size:0.85rem;" onclick="exportHistory()">📥 Download Log</button>
@@ -60,12 +58,13 @@
         <div id="recent-log"></div>
     </div>
 
+    <button style="margin-top:40px; background:none; color:#999; font-size:0.7rem; border:none; text-decoration: underline;" onclick="if(confirm('Erase all data?')){localStorage.clear();location.reload();}">Reset Everything</button>
+
     <script>
-        // Init Inventory
         if (localStorage.getItem('oxy_inventory') === null) localStorage.setItem('oxy_inventory', 9);
 
         const meds = [
-            { id: 'acetaminophen', name: 'Acetaminophen', hours: 6, mgPerPill: 500, dailyMaxMg: 4000 },
+            { id: 'acetaminophen', name: 'Acetaminophen', hours: 4, mgPerPill: 500, dailyMaxMg: 4000 },
             { id: 'ibuprofen', name: 'Ibuprofen', hours: 6, limit: null },
             { id: 'oxy', name: 'Oxycodone', hours: 4, inventory: true },
             { id: 'gasx', name: 'Gas-X', hours: 0, limit: 4 }
@@ -73,7 +72,6 @@
 
         let selectedPain = null, selectedLocation = null;
 
-        // UI Setup for Pain Scale
         const scaleDiv = document.getElementById('pain-scale');
         for(let i=1; i<=10; i++) {
             let div = document.createElement('div'); div.className = 'pain-num'; div.innerText = i;
@@ -105,22 +103,21 @@
                 let isReady = (now - lastTaken) >= waitTimeMs;
 
                 if (med.id === 'acetaminophen') {
-                    // Calculate mg in last 24h
-                    const mgLast24 = history.filter(h => h.id === 'acetaminophen' && (now - h.timestamp) < 86400000).reduce((sum, h) => sum + (h.mg || 0), 0);
-                    const canTakeTwo = (mgLast24 + 1000) <= med.dailyMaxMg;
-                    const canTakeOne = (mgLast24 + 500) <= med.dailyMaxMg;
+                    const mg24 = history.filter(h => h.id === 'acetaminophen' && (now - h.timestamp) < 86400000).reduce((sum, h) => sum + (h.mg || 0), 0);
+                    const canTakeOne = (mg24 + 500) <= med.dailyMaxMg;
+                    const canTakeTwo = (mg24 + 1000) <= med.dailyMaxMg;
                     card.className = isReady && canTakeOne ? 'card ready' : 'card waiting';
                     card.innerHTML = `
                         <div class="med-name">${med.name}</div>
-                        <div class="badge ${mgLast24 >= 3000 ? 'badge-warn' : 'badge-blue'}">${mgLast24}mg / ${med.dailyMaxMg}mg USED (24h)</div>
-                        <div class="dosage-info">6 Hour Gap</div>
+                        <div class="badge ${mg24 >= 3000 ? 'badge-warn' : 'badge-blue'}">${mg24}mg / ${med.dailyMaxMg}mg Used Today</div>
+                        <div class="dosage-info">4 Hour Gap Window</div>
                         <div class="timer">${isReady ? (canTakeOne ? 'READY' : 'LIMIT REACHED') : formatTime((lastTaken + waitTimeMs) - now)}</div>
                         <button onclick="takeAcetaminophen(${canTakeTwo})" ${!isReady || !canTakeOne ? 'disabled' : ''}>LOG DOSE</button>
                     `;
                 } else if (med.id === 'gasx') {
-                    const doses24 = history.filter(h => h.id === med.id && (now - h.timestamp) < 86400000).length;
+                    const doses24 = history.filter(h => h.id === 'gasx' && (now - h.timestamp) < 86400000).length;
                     card.className = doses24 >= med.limit ? 'card limit-reached' : 'card ready';
-                    card.innerHTML = `<div class="med-name">${med.name}</div><div class="badge badge-blue">${med.limit - doses24} DOSES LEFT</div><div class="dosage-info">Max 4 per day</div><button onclick="takeSimple('${med.id}', '${med.name}')" ${doses24 >= med.limit ? 'disabled' : ''}>LOG DOSE</button>`;
+                    card.innerHTML = `<div class="med-name">${med.name}</div><div class="badge badge-blue">${med.limit - doses24} DOSES LEFT</div><div class="dosage-info">Max 4 per 24h</div><button onclick="takeSimple('${med.id}', '${med.name}')" ${doses24 >= med.limit ? 'disabled' : ''}>LOG DOSE</button>`;
                 } else if (med.id === 'oxy') {
                     const stock = parseInt(localStorage.getItem('oxy_inventory'));
                     card.className = isReady ? 'card ready' : 'card waiting';
@@ -143,13 +140,12 @@
             if (confirm(`Log ${name}?`)) { const now = Date.now(); localStorage.setItem(id, now); saveHistory({ id, name, timestamp: now }); updateUI(); }
         }
 
-        window.takeAcetaminophen = function(canTakeTwo) {
-            const num = prompt(canTakeTwo ? "How many pills? (1 or 2)" : "Only 1 pill allowed to stay under daily limit. Enter '1' to confirm:", "2");
-            if ((num === "1") || (num === "2" && canTakeTwo)) {
-                const mg = parseInt(num) * 500;
+        window.takeAcetaminophen = function(canTwo) {
+            const num = prompt(canTwo ? "How many pills? (1 or 2)" : "1 pill allowed (Daily Limit Near). Enter 1:", "2");
+            if ((num === "1") || (num === "2" && canTwo)) {
                 const now = Date.now(); localStorage.setItem('acetaminophen', now);
-                saveHistory({ id: 'acetaminophen', name: 'Acetaminophen', mg: mg, timestamp: now }); updateUI();
-            } else if (num !== null) { alert(canTakeTwo ? "Enter 1 or 2." : "You can only take 1 pill right now."); }
+                saveHistory({ id: 'acetaminophen', name: 'Acetaminophen', mg: parseInt(num)*500, timestamp: now }); updateUI();
+            }
         }
 
         window.takeOxy = function() {
@@ -158,7 +154,7 @@
             if ((num === "1" || num === "2") && stock >= parseInt(num)) {
                 const now = Date.now(); localStorage.setItem('oxy', now); localStorage.setItem('oxy_inventory', stock - parseInt(num));
                 saveHistory({ id: 'oxy', name: 'Oxycodone', pills: parseInt(num), timestamp: now }); updateUI();
-            } else if (num !== null) { alert("Enter 1 or 2 (and check stock)."); }
+            }
         }
 
         function saveHistory(obj) {
