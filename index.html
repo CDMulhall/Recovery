@@ -110,7 +110,7 @@
                     card.innerHTML = `
                         <div class="med-name">${med.name}</div>
                         <div class="badge ${mg24 >= 3000 ? 'badge-warn' : 'badge-blue'}">${mg24}mg / ${med.dailyMaxMg}mg Used Today</div>
-                        <div class="dosage-info">4 Hour Gap Window</div>
+                        <div class="dosage-info">4 Hour Gap</div>
                         <div class="timer">${isReady ? (canTakeOne ? 'READY' : 'LIMIT REACHED') : formatTime((lastTaken + waitTimeMs) - now)}</div>
                         <button onclick="takeAcetaminophen(${canTakeTwo})" ${!isReady || !canTakeOne ? 'disabled' : ''}>LOG DOSE</button>
                     `;
